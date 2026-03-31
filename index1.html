@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starmap Radar</title>
+    <style>
+        body { background-color: #050505; color: #00ff00; font-family: monospace; padding: 20px; text-align: center; }
+        #starmap {
+            position: relative;
+            width: 400px; height: 400px;
+            margin: 20px auto;
+            background: #111;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        /* 坐标系的十字准星 */
+        #starmap::before { content: ""; position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(0,255,0,0.3); }
+        #starmap::after { content: ""; position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(0,255,0,0.3); }
+        
+        /* 坐标轴标签 */
+        .label { position: absolute; font-size: 12px; color: #00ff00; opacity: 0.7; }
+        .lbl-top { top: 5px; left: 50%; transform: translateX(-50%); } /* 正面 */
+        .lbl-bottom { bottom: 5px; left: 50%; transform: translateX(-50%); } /* 负面 */
+        .lbl-left { top: 50%; left: 5px; transform: translateY(-50%); } /* 激进 */
+        .lbl-right { top: 50%; right: 5px; transform: translateY(-50%); } /* 保守 */
+
+        /* 用户的 Emoji 光标 */
+        #user-emoji {
+            position: absolute;
+            font-size: 24px;
+            /* 初始位置在正中心 (50%, 50%) */
+            left: 50%; top: 50%;
+            transform: translate(-50%, -50%);
+            transition: all 0.3s ease-out; /* 移动时的丝滑动画 */
+            z-index: 10;
+        }
+
+        textarea { width: 400px; height: 80px; background: #222; color: #fff; border: 1px solid #00ff00; padding: 10px; font-family: monospace; }
+        #loading { color: yellow; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <h2>RennOS_05 // Semantic Starmap</h2>
+    <div id="loading">🚀 Initializing Neural Engines (approx. 57MB)... Please wait.</div>
+    
+    <div id="starmap">
+        <div class="label lbl-top">+ Positive (喜悦/赞同)</div>
+        <div class="label lbl-bottom">- Negative (厌恶/悲伤)</div>
+        <div class="label lbl-left">- Radical (激进/情绪)</div>
+        <div class="label lbl-right">+ Rational (保守/客观)</div>
+        
+        <div id="user-emoji">😎</div> 
+    </div>
+
+    <textarea id="chat-input" placeholder="Type something to navigate the starmap..." disabled></textarea>
+    
+    <div id="debug-info" style="margin-top: 10px; font-size: 12px; color: #aaa;">X: 0.00 | Y: 0.00</div>
+
+    <script type="module" src="starmap.js"></script>
+</body>
+</html>

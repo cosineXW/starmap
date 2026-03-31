@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RennOS_05 // Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #000;
+            color: #e0e0e0;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* ─── Animated Background ─── */
+        canvas#bg {
+            position: fixed; inset: 0;
+            z-index: 0;
+        }
+
+        /* ─── Auth Container ─── */
+        .auth-wrapper {
+            position: relative;
+            z-index: 10;
+            width: 380px;
+        }
+
+        .auth-card {
+            background: rgba(8, 8, 12, 0.7);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 40px 36px;
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            box-shadow: 0 0 60px rgba(255,255,255,0.02);
+        }
+
+        /* ─── Logo / Title ─── */
+        .auth-logo {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+        .auth-logo h1 {
+            font-size: 13px;
+            font-weight: 400;
+            color: rgba(255,255,255,0.35);
+            letter-spacing: 4px;
+            margin-bottom: 8px;
+        }
+        .auth-logo .star-icon {
+            font-size: 28px;
+            display: block;
+            margin-bottom: 16px;
+            opacity: 0.6;
+        }
+
+        /* ─── Tabs (Login / Register) ─── */
+        .auth-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 28px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .auth-tab {
+            flex: 1;
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.25);
+            font-family: inherit;
+            font-size: 11px;
+            letter-spacing: 2px;
+            padding: 10px 0;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+        .auth-tab.active {
+            color: rgba(255,255,255,0.8);
+        }
+        .auth-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 20%;
+            width: 60%;
+            height: 1px;
+            background: rgba(255,255,255,0.5);
+            box-shadow: 0 0 8px rgba(255,255,255,0.3);
+        }
+        .auth-tab:hover:not(.active) {
+            color: rgba(255,255,255,0.45);
+        }
+
+        /* ─── Form ─── */
+        .auth-form { display: none; }
+        .auth-form.active { display: block; }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+        .form-label {
+            display: block;
+            font-size: 10px;
+            color: rgba(255,255,255,0.25);
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+        .form-input {
+            width: 100%;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 6px;
+            padding: 12px 14px;
+            color: #e0e0e0;
+            font-family: inherit;
+            font-size: 13px;
+            outline: none;
+            transition: all 0.3s;
+        }
+        .form-input::placeholder {
+            color: rgba(255,255,255,0.15);
+        }
+        .form-input:focus {
+            border-color: rgba(255,255,255,0.25);
+            box-shadow: 0 0 20px rgba(255,255,255,0.04);
+        }
+
+        /* ─── Submit Button ─── */
+        .btn-submit {
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 6px;
+            padding: 13px;
+            color: rgba(255,255,255,0.7);
+            font-family: inherit;
+            font-size: 11px;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 6px;
+        }
+        .btn-submit:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.3);
+            color: #fff;
+            box-shadow: 0 0 25px rgba(255,255,255,0.06);
+        }
+
+        /* ─── Divider ─── */
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 24px 0;
+            gap: 14px;
+        }
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(255,255,255,0.06);
+        }
+        .divider span {
+            font-size: 10px;
+            color: rgba(255,255,255,0.18);
+            letter-spacing: 2px;
+        }
+
+        /* ─── Google Button ─── */
+        .btn-google {
+            width: 100%;
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 6px;
+            padding: 12px;
+            color: rgba(255,255,255,0.5);
+            font-family: inherit;
+            font-size: 12px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .btn-google:hover {
+            border-color: rgba(255,255,255,0.2);
+            color: rgba(255,255,255,0.8);
+            box-shadow: 0 0 20px rgba(255,255,255,0.04);
+        }
+        .btn-google svg {
+            width: 16px;
+            height: 16px;
+            opacity: 0.6;
+        }
+        .btn-google:hover svg {
+            opacity: 0.9;
+        }
+
+        /* ─── Forgot Password ─── */
+        .forgot-link {
+            display: block;
+            text-align: center;
+            margin-top: 18px;
+            font-size: 10px;
+            color: rgba(255,255,255,0.2);
+            text-decoration: none;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+        .forgot-link:hover {
+            color: rgba(255,255,255,0.5);
+        }
+
+        /* ─── Back to Starmap ─── */
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 24px;
+            font-size: 10px;
+            color: rgba(255,255,255,0.15);
+            text-decoration: none;
+            letter-spacing: 2px;
+            transition: color 0.3s;
+        }
+        .back-link:hover {
+            color: rgba(255,255,255,0.4);
+        }
+
+        /* ─── Error / Status ─── */
+        .auth-message {
+            text-align: center;
+            font-size: 11px;
+            margin-top: 14px;
+            min-height: 16px;
+            transition: all 0.3s;
+        }
+        .auth-message.error { color: rgba(255,100,100,0.7); }
+        .auth-message.success { color: rgba(100,255,150,0.7); }
+
+        /* ─── Reset Password View ─── */
+        .reset-view { display: none; }
+        .reset-view.active { display: block; }
+        .reset-back {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.25);
+            font-family: inherit;
+            font-size: 10px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            padding: 0;
+            transition: color 0.3s;
+        }
+        .reset-back:hover { color: rgba(255,255,255,0.5); }
+    </style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <!-- Main Auth View -->
+        <div id="main-view">
+            <div class="auth-logo">
+                <span class="star-icon">✦</span>
+                <h1>RENNOS_05</h1>
+            </div>
+
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login">LOGIN</button>
+                <button class="auth-tab" data-tab="register">REGISTER</button>
+            </div>
+
+            <!-- Login Form -->
+            <form class="auth-form active" id="login-form">
+                <div class="form-group">
+                    <label class="form-label">EMAIL</label>
+                    <input class="form-input" type="email" placeholder="your@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">PASSWORD</label>
+                    <input class="form-input" type="password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn-submit">SIGN IN</button>
+
+                <div class="divider"><span>OR</span></div>
+
+                <button type="button" class="btn-google" id="google-login">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#fff"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff"/></svg>
+                    Continue with Google
+                </button>
+
+                <a class="forgot-link" id="show-reset">FORGOT PASSWORD?</a>
+                <div class="auth-message" id="login-msg"></div>
+            </form>
+
+            <!-- Register Form -->
+            <form class="auth-form" id="register-form">
+                <div class="form-group">
+                    <label class="form-label">USERNAME</label>
+                    <input class="form-input" type="text" placeholder="choose a username" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">EMAIL</label>
+                    <input class="form-input" type="email" placeholder="your@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">PASSWORD</label>
+                    <input class="form-input" type="password" placeholder="min 6 characters" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">CONFIRM PASSWORD</label>
+                    <input class="form-input" type="password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn-submit">CREATE ACCOUNT</button>
+
+                <div class="divider"><span>OR</span></div>
+
+                <button type="button" class="btn-google" id="google-register">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#fff"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff"/></svg>
+                    Continue with Google
+                </button>
+
+                <a class="forgot-link" id="show-reset-2">FORGOT PASSWORD?</a>
+                <div class="auth-message" id="register-msg"></div>
+            </form>
+        </div>
+
+        <!-- Reset Password View -->
+        <div class="reset-view" id="reset-view">
+            <button class="reset-back" id="back-to-login">&larr; BACK</button>
+            <div class="auth-logo" style="margin-bottom: 24px;">
+                <h1 style="font-size: 11px;">RESET PASSWORD</h1>
+            </div>
+            <form id="reset-form">
+                <div class="form-group">
+                    <label class="form-label">EMAIL</label>
+                    <input class="form-input" type="email" placeholder="your@email.com" required>
+                </div>
+                <button type="submit" class="btn-submit">SEND RESET LINK</button>
+                <div class="auth-message" id="reset-msg"></div>
+            </form>
+        </div>
+    </div>
+
+    <a class="back-link" href="index.html">&larr; BACK TO STARMAP</a>
+</div>
+
+<script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+             GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail }
+        from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+    import { getFirestore, doc, setDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyA73oNDKOPBW9TsfxS9z3D1zoHnTReSY4I",
+        authDomain: "cd-starmap.web.app",
+        databaseURL: "https://new-social-media-49e1b-default-rtdb.firebaseio.com",
+        projectId: "new-social-media-49e1b",
+        storageBucket: "new-social-media-49e1b.firebasestorage.app",
+        messagingSenderId: "156229387049",
+        appId: "1:156229387049:web:02efe89d03acc69c9b2d38",
+        measurementId: "G-5TQVHWZQLP"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const googleProvider = new GoogleAuthProvider();
+
+    // ─── Tab Switching ───
+    document.querySelectorAll('.auth-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+            tab.classList.add('active');
+            const target = tab.dataset.tab;
+            document.getElementById(target + '-form').classList.add('active');
+        });
+    });
+
+    // ─── Reset Password View Toggle ───
+    document.getElementById('show-reset').addEventListener('click', showReset);
+    document.getElementById('show-reset-2').addEventListener('click', showReset);
+    document.getElementById('back-to-login').addEventListener('click', hideReset);
+
+    function showReset() {
+        document.getElementById('main-view').style.display = 'none';
+        document.getElementById('reset-view').classList.add('active');
+    }
+    function hideReset() {
+        document.getElementById('main-view').style.display = 'block';
+        document.getElementById('reset-view').classList.remove('active');
+    }
+
+    function showMsg(id, text, type = 'error') {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.className = 'auth-message ' + type;
+    }
+
+    // ─── Login ───
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const inputs = e.target.querySelectorAll('.form-input');
+        const email = inputs[0].value;
+        const password = inputs[1].value;
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+            showMsg('login-msg', 'AUTHENTICATED', 'success');
+            setTimeout(() => window.location.href = 'index.html', 800);
+        } catch (err) {
+            showMsg('login-msg', err.message.replace('Firebase: ', ''));
+        }
+    });
+
+    // ─── Register ───
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const inputs = e.target.querySelectorAll('.form-input');
+        const username = inputs[0].value;
+        const email = inputs[1].value;
+        const password = inputs[2].value;
+        const confirm = inputs[3].value;
+
+        if (password !== confirm) {
+            showMsg('register-msg', 'PASSWORDS DO NOT MATCH');
+            return;
+        }
+        try {
+            const cred = await createUserWithEmailAndPassword(auth, email, password);
+            // Create user doc in Firestore
+            await setDoc(doc(db, 'users', cred.user.uid), {
+                username: username,
+                emoji: '✦',
+                totalLikes: 0,
+                totalComments: 0,
+                totalFollowers: 0,
+                streakDays: 0,
+                lastPostTime: 0,
+                lastStreakDate: ''
+            });
+            showMsg('register-msg', 'ACCOUNT CREATED', 'success');
+            setTimeout(() => window.location.href = 'index.html', 800);
+        } catch (err) {
+            showMsg('register-msg', err.message.replace('Firebase: ', ''));
+        }
+    });
+
+    // ─── Google Auth ───
+    async function googleAuth() {
+        try {
+            const result = await signInWithPopup(auth, googleProvider);
+            showMsg('login-msg', 'AUTHENTICATED VIA GOOGLE', 'success');
+            setTimeout(() => window.location.href = 'index.html', 800);
+        } catch (err) {
+            showMsg('login-msg', err.message.replace('Firebase: ', ''));
+        }
+    }
+    document.getElementById('google-login').addEventListener('click', googleAuth);
+    document.getElementById('google-register').addEventListener('click', googleAuth);
+
+    // ─── Password Reset ───
+    document.getElementById('reset-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = e.target.querySelector('.form-input').value;
+        try {
+            await sendPasswordResetEmail(auth, email);
+            showMsg('reset-msg', 'RESET LINK SENT', 'success');
+        } catch (err) {
+            showMsg('reset-msg', err.message.replace('Firebase: ', ''));
+        }
+    });
+
+    // ─── Background Stars Animation ───
+    const canvas = document.getElementById('bg');
+    const ctx = canvas.getContext('2d');
+    let W, H;
+
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const stars = [];
+    for (let i = 0; i < 200; i++) {
+        stars.push({
+            x: Math.random() * W,
+            y: Math.random() * H,
+            size: Math.random() * 1.2 + 0.3,
+            brightness: Math.random() * 0.3 + 0.05,
+            speed: Math.random() * 0.015 + 0.005,
+            phase: Math.random() * Math.PI * 2
+        });
+    }
+
+    let t = 0;
+    function drawBg() {
+        t += 0.01;
+        ctx.fillStyle = '#020208';
+        ctx.fillRect(0, 0, W, H);
+
+        for (const s of stars) {
+            const twinkle = 0.5 + 0.5 * Math.sin(t * s.speed * 60 + s.phase);
+            ctx.fillStyle = `rgba(200, 200, 230, ${s.brightness * twinkle})`;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        requestAnimationFrame(drawBg);
+    }
+    drawBg();
+</script>
+</body>
+</html>

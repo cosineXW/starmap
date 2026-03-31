@@ -1,64 +1,1005 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Starmap Radar</title>
+    <title>RennOS_05 // Constellation</title>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
     <style>
-        body { background-color: #050505; color: #00ff00; font-family: monospace; padding: 20px; text-align: center; }
-        #starmap {
-            position: relative;
-            width: 400px; height: 400px;
-            margin: 20px auto;
-            background: #111;
-            border: 2px solid #00ff00;
-            border-radius: 10px;
-            overflow: hidden;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000; overflow: hidden;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            color: #e0e0e0; user-select: none; -webkit-user-select: none;
         }
-        /* 坐标系的十字准星 */
-        #starmap::before { content: ""; position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(0,255,0,0.3); }
-        #starmap::after { content: ""; position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(0,255,0,0.3); }
-        
-        /* 坐标轴标签 */
-        .label { position: absolute; font-size: 12px; color: #00ff00; opacity: 0.7; }
-        .lbl-top { top: 5px; left: 50%; transform: translateX(-50%); } /* 正面 */
-        .lbl-bottom { bottom: 5px; left: 50%; transform: translateX(-50%); } /* 负面 */
-        .lbl-left { top: 50%; left: 5px; transform: translateY(-50%); } /* 激进 */
-        .lbl-right { top: 50%; right: 5px; transform: translateY(-50%); } /* 保守 */
+        canvas { display: block; cursor: grab; }
+        canvas:active { cursor: grabbing; }
 
-        /* 用户的 Emoji 光标 */
-        #user-emoji {
-            position: absolute;
-            font-size: 24px;
-            /* 初始位置在正中心 (50%, 50%) */
-            left: 50%; top: 50%;
-            transform: translate(-50%, -50%);
-            transition: all 0.3s ease-out; /* 移动时的丝滑动画 */
-            z-index: 10;
+        /* ─── Loading ─── */
+        #loading-overlay {
+            position: fixed; inset: 0; background: #000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000; transition: opacity 0.8s ease;
+        }
+        #loading-overlay.fade-out { opacity: 0; pointer-events: none; }
+        #loading-overlay h1 { font-size: 20px; color: #ffffff; letter-spacing: 4px; margin-bottom: 30px; }
+        .loader-bar { width: 300px; height: 2px; background: #1a1a1a; border-radius: 1px; overflow: hidden; margin-bottom: 16px; }
+        .loader-bar-inner { height: 100%; width: 0%; background: linear-gradient(90deg, #333, #888, #fff); transition: width 0.3s ease; }
+        #loading-status { font-size: 12px; color: rgba(255,255,255,0.5); letter-spacing: 1px; }
+
+        /* ─── HUD ─── */
+        .hud-btn {
+            position: fixed; z-index: 150; background: transparent;
+            border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.5);
+            font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+            letter-spacing: 2px; padding: 8px 18px; border-radius: 4px;
+            cursor: pointer; transition: all 0.3s ease; text-decoration: none;
+        }
+        .hud-btn:hover {
+            border-color: rgba(255,255,255,0.5); color: rgba(255,255,255,0.9);
+            box-shadow: 0 0 20px rgba(255,255,255,0.08);
+        }
+        #auth-btn { top: 18px; right: 20px; }
+        #hud-welcome {
+            position: fixed; top: 18px; left: 20px; z-index: 150;
+            font-size: 11px; color: rgba(255,255,255,0.3); letter-spacing: 2px;
+            cursor: pointer; padding: 8px 0; transition: color 0.3s; display: none;
+        }
+        #hud-welcome:hover { color: rgba(255,255,255,0.7); }
+        #hud-title {
+            position: fixed; top: 18px; left: 20px; z-index: 100;
+            font-size: 14px; color: rgba(255,255,255,0.12); letter-spacing: 3px;
+            font-weight: 400; pointer-events: none;
+        }
+        #hud-zoom { position: fixed; bottom: 16px; left: 20px; font-size: 11px; color: #333; z-index: 100; pointer-events: none; letter-spacing: 1px; }
+        #hud-count { position: fixed; bottom: 16px; right: 20px; font-size: 11px; color: #333; z-index: 100; pointer-events: none; letter-spacing: 1px; }
+
+        /* ─── Tooltip ─── */
+        #tooltip {
+            position: fixed; background: rgba(10,10,16,0.92); border: 1px solid #1a1a2a;
+            border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #aaa;
+            pointer-events: none; z-index: 300; opacity: 0; transition: opacity 0.15s;
+            backdrop-filter: blur(10px); max-width: 260px;
+        }
+        #tooltip .tt-emoji { font-size: 16px; margin-right: 6px; vertical-align: middle; }
+        #tooltip .tt-name { color: #888; font-size: 11px; }
+        #tooltip .tt-content {
+            color: #ccc; font-size: 12px; margin-top: 4px;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.4;
         }
 
-        textarea { width: 400px; height: 80px; background: #222; color: #fff; border: 1px solid #00ff00; padding: 10px; font-family: monospace; }
-        #loading { color: yellow; margin-bottom: 10px; }
+        /* ─── Right Panel (shared for post detail + profile) ─── */
+        #right-panel {
+            position: fixed; top: 0; right: -420px; width: 400px; height: 100vh;
+            background: rgba(8,8,12,0.95); border-left: 1px solid #1a1a2a;
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            z-index: 200; transition: right 0.35s cubic-bezier(0.4,0,0.2,1);
+            overflow-y: auto; padding: 0;
+        }
+        #right-panel.open { right: 0; }
+        #right-panel::-webkit-scrollbar { width: 4px; }
+        #right-panel::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+        .rpanel-close {
+            position: absolute; top: 16px; right: 16px; background: none; border: none;
+            color: #555; font-size: 18px; cursor: pointer; width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center; border-radius: 6px; transition: all 0.2s;
+        }
+        .rpanel-close:hover { background: #1a1a2a; color: #aaa; }
+        .rpanel-header { position: sticky; top: 0; background: rgba(8,8,12,0.98); padding: 24px; border-bottom: 1px solid #1a1a2a; z-index: 1; }
+        .rpanel-body { padding: 16px 24px 24px; }
+        .rpanel-user { display: flex; align-items: center; gap: 14px; }
+        .rpanel-emoji { font-size: 42px; line-height: 1; cursor: pointer; transition: transform 0.2s; }
+        .rpanel-emoji:hover { transform: scale(1.15); }
+        .rpanel-name { font-size: 18px; font-weight: 600; color: #e0e0e0; margin-bottom: 4px; }
+        .rpanel-name.editable { cursor: pointer; }
+        .rpanel-name.editable:hover { color: #fff; }
+        .rpanel-stats { font-size: 11px; color: #555; display: flex; gap: 12px; }
+        .rpanel-stat-val { color: rgba(255,255,255,0.6); }
+        .rpanel-coords { margin-top: 12px; font-size: 11px; color: #333; letter-spacing: 1px; }
+        .rpanel-section { font-size: 11px; color: #444; letter-spacing: 2px; margin: 16px 0 12px; }
+        .post-card {
+            background: #0d0d14; border: 1px solid #1a1a2a; border-radius: 10px;
+            padding: 14px; margin-bottom: 8px; transition: border-color 0.2s;
+        }
+        .post-card:hover { border-color: #2a2a3a; }
+        .post-card-content {
+            font-size: 14px; color: #ccc; line-height: 1.6; margin-bottom: 8px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        .post-card-meta { display: flex; gap: 14px; font-size: 11px; color: #444; }
+
+        /* ─── Composer Bar ─── */
+        #composer-area {
+            position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+            z-index: 180; transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+        }
+        #say-btn {
+            bottom: calc(10vh); position: fixed; left: 50%; transform: translateX(-50%);
+            z-index: 180;
+        }
+        #composer-box {
+            display: none; width: 480px;
+            background: rgba(8,8,12,0.92); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px; padding: 16px; margin-bottom: 24px;
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        }
+        #composer-box.open { display: block; }
+        #composer-textarea {
+            width: 100%; min-height: 80px; max-height: 200px; resize: vertical;
+            background: transparent; border: none; outline: none;
+            color: #ddd; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 14px; line-height: 1.6;
+        }
+        #composer-textarea::placeholder { color: rgba(255,255,255,0.15); }
+        #composer-footer {
+            display: flex; align-items: center; gap: 10px; margin-top: 12px;
+            padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        #post-btn {
+            margin-left: auto; background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;
+            color: rgba(255,255,255,0.6); font-family: inherit; font-size: 11px;
+            letter-spacing: 2px; padding: 8px 20px; cursor: pointer; transition: all 0.3s;
+        }
+        #post-btn:hover { background: rgba(255,255,255,0.14); color: #fff; box-shadow: 0 0 20px rgba(255,255,255,0.06); }
+
+        /* ─── Emoji Picker Popup ─── */
+        #emoji-picker-wrap {
+            position: fixed; z-index: 500; display: none;
+        }
+        #emoji-picker-wrap emoji-picker {
+            --background: #0a0a10; --border-color: #1a1a2a;
+            --input-border-color: #222; --input-font-color: #ccc;
+            --category-font-color: #555; --indicator-color: rgba(255,255,255,0.3);
+        }
     </style>
 </head>
 <body>
 
-    <h2>RennOS_05 // Semantic Starmap</h2>
-    <div id="loading">🚀 Initializing Neural Engines (approx. 57MB)... Please wait.</div>
-    
-    <div id="starmap">
-        <div class="label lbl-top">+ Positive (喜悦/赞同)</div>
-        <div class="label lbl-bottom">- Negative (厌恶/悲伤)</div>
-        <div class="label lbl-left">- Radical (激进/情绪)</div>
-        <div class="label lbl-right">+ Rational (保守/客观)</div>
-        
-        <div id="user-emoji">😎</div> 
+<!-- BGM: autoplay + loop from page start -->
+<audio id="bgm" src="bgm.mp3" loop autoplay preload="auto"></audio>
+
+<div id="loading-overlay">
+    <h1>CONSTELLATION</h1>
+    <div class="loader-bar"><div class="loader-bar-inner" id="loader-bar"></div></div>
+    <div id="loading-status">INITIALIZING...</div>
+</div>
+
+<button id="auth-btn" class="hud-btn" onclick="handleAuth()">LOGIN</button>
+<div id="hud-welcome" onclick="openProfile()"></div>
+<div id="hud-title">CONSTELLATION</div>
+<div id="hud-zoom">ZOOM: 1.00x</div>
+<div id="hud-count"><span id="node-count">0</span> POSTS</div>
+
+<div id="tooltip">
+    <div><span class="tt-emoji"></span><span class="tt-name"></span></div>
+    <div class="tt-content"></div>
+</div>
+
+<!-- Right Panel -->
+<div id="right-panel">
+    <div class="rpanel-header">
+        <button class="rpanel-close" onclick="closeRightPanel()">&times;</button>
+        <div class="rpanel-user">
+            <div class="rpanel-emoji" id="rp-emoji"></div>
+            <div>
+                <div class="rpanel-name" id="rp-name"></div>
+                <div class="rpanel-stats" id="rp-stats"></div>
+            </div>
+        </div>
+        <div class="rpanel-coords" id="rp-coords"></div>
     </div>
+    <div class="rpanel-body" id="rp-body"></div>
+</div>
 
-    <textarea id="chat-input" placeholder="Type something to navigate the starmap..." disabled></textarea>
-    
-    <div id="debug-info" style="margin-top: 10px; font-size: 12px; color: #aaa;">X: 0.00 | Y: 0.00</div>
+<!-- Composer -->
+<button id="say-btn" class="hud-btn" onclick="toggleComposer()">SAY SOMETHING</button>
+<div id="composer-area">
+    <div id="composer-box">
+        <textarea id="composer-textarea" placeholder="What's on your mind..."></textarea>
+        <div id="composer-footer">
+            <button id="post-btn" onclick="submitPost()">POST</button>
+        </div>
+    </div>
+</div>
 
-    <script type="module" src="starmap.js"></script>
+<!-- Emoji Picker -->
+<div id="emoji-picker-wrap"><emoji-picker></emoji-picker></div>
+
+<canvas id="starmap"></canvas>
+
+<script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+    import { getFirestore, collection, getDocs, doc, setDoc, addDoc, updateDoc, serverTimestamp, writeBatch, increment }
+        from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+    import { getAuth, onAuthStateChanged, signOut }
+        from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+    import { pipeline, env as tfEnv } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.0';
+    // Disable browser cache to avoid stale HTML responses from old rewrite rules
+    tfEnv.useBrowserCache = false;
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyA73oNDKOPBW9TsfxS9z3D1zoHnTReSY4I",
+        authDomain: "new-social-media-49e1b.firebaseapp.com",
+        databaseURL: "https://new-social-media-49e1b-default-rtdb.firebaseio.com",
+        projectId: "new-social-media-49e1b",
+        storageBucket: "new-social-media-49e1b.firebasestorage.app",
+        messagingSenderId: "156229387049",
+        appId: "1:156229387049:web:02efe89d03acc69c9b2d38",
+        measurementId: "G-5TQVHWZQLP"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // ─── State ───
+    let nodes = [];
+    let usersMap = {};
+    let bgStars = [];
+    let cn_extractor, en_extractor, cn_matrix, en_matrix;
+    let currentUser = null;  // Firebase auth user
+    let currentUserData = null;  // Firestore user doc
+
+    const canvas = document.getElementById('starmap');
+    const ctx = canvas.getContext('2d');
+    let W, H, offsetX = 0, offsetY = 0, scale = 1;
+    let isDragging = false, dragStartX, dragStartY, mouseDownX, mouseDownY;
+    let hoveredNode = null, mouseWX = 0, mouseWY = 0;
+    let time = 0;
+
+    // Live preview star while composing
+    let liveStarX = 0, liveStarY = 0, liveStarActive = false;
+    // Post animation queue
+    let postAnimations = []; // { x, y, progress (0→1), emoji, color }
+
+
+    // ─── Auth State ───
+    onAuthStateChanged(auth, async (user) => {
+        currentUser = user;
+        const authBtn = document.getElementById('auth-btn');
+        const welcome = document.getElementById('hud-welcome');
+        const title = document.getElementById('hud-title');
+
+        if (user) {
+            // Fetch user data from Firestore
+            currentUserData = usersMap[user.uid] || null;
+            authBtn.textContent = 'LOGOUT';
+            const name = currentUserData?.username || user.displayName || user.email?.split('@')[0] || 'user';
+            welcome.textContent = `WELCOME, ${name.toUpperCase()}`;
+            welcome.style.display = 'block';
+            title.style.display = 'none';
+        } else {
+            currentUserData = null;
+            authBtn.textContent = 'LOGIN';
+            welcome.style.display = 'none';
+            title.style.display = 'block';
+        }
+    });
+
+    window.handleAuth = function() {
+        if (currentUser) {
+            signOut(auth);
+        } else {
+            window.location.href = 'login.html';
+        }
+    };
+
+    // ─── Loading ───
+    const loaderBar = document.getElementById('loader-bar');
+    const loadingStatus = document.getElementById('loading-status');
+    function setProgress(p, msg) { loaderBar.style.width = p + '%'; loadingStatus.textContent = msg; }
+
+    function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resize); resize();
+
+    // ─── Coordinate Transform ───
+    const BASE_SCALE_FACTOR = 0.46;
+    function worldToScreen(wx, wy) {
+        const bs = Math.min(W, H) * BASE_SCALE_FACTOR;
+        return [W/2 + (wx * bs + offsetX) * scale, H/2 + (-wy * bs + offsetY) * scale];
+    }
+    function screenToWorld(sx, sy) {
+        const bs = Math.min(W, H) * BASE_SCALE_FACTOR;
+        return [((sx - W/2) / scale - offsetX) / bs, -(((sy - H/2) / scale - offsetY) / bs)];
+    }
+
+    function generateBgStars(count = 800) {
+        bgStars = [];
+        for (let i = 0; i < count; i++) bgStars.push({
+            x: (Math.random()-0.5)*6, y: (Math.random()-0.5)*6,
+            size: Math.random()*1.2+0.3, brightness: Math.random()*0.35+0.08,
+            twinkleSpeed: Math.random()*0.02+0.005, twinkleOffset: Math.random()*Math.PI*2
+        });
+    }
+
+    // ─── Sentiment ───
+    function isChinese(t) { return /[\u4e00-\u9fa5]/.test(t); }
+    function computeScores(emb, mat) {
+        let x = mat.intercepts[0], y = mat.intercepts[1];
+        for (let i = 0; i < emb.length; i++) { x += emb[i]*mat.weights[0][i]; y += emb[i]*mat.weights[1][i]; }
+        return [Math.max(-1,Math.min(1,x)), Math.max(-1,Math.min(1,y))];
+    }
+    async function analyzeSentiment(text) {
+        if (!text?.trim()) return [0,0];
+        try {
+            const ext = isChinese(text) ? cn_extractor : en_extractor;
+            const mat = isChinese(text) ? cn_matrix : en_matrix;
+            const out = await ext(text, { pooling: 'mean', normalize: true });
+            return computeScores(out.data, mat);
+        } catch(e) { return [0,0]; }
+    }
+
+    // ─── Data Loading ───
+    async function loadFirebaseData() {
+        setProgress(5, 'CONNECTING TO FIREBASE...');
+        const usersSnap = await getDocs(collection(db, 'users'));
+        usersSnap.forEach(d => {
+            const data = d.data();
+            usersMap[d.id] = {
+                username: data.username||'anonymous', emoji: data.emoji||'👤',
+                totalLikes: data.totalLikes||0, totalComments: data.totalComments||0,
+                totalFollowers: data.totalFollowers||0, streakDays: data.streakDays||0,
+                lastPostTime: data.lastPostTime||0, lastStreakDate: data.lastStreakDate||'',
+            };
+        });
+        setProgress(15, 'LOADING DATA...');
+
+        const rawNodes = [];
+        const postsSnap = await getDocs(collection(db, 'posts'));
+        postsSnap.forEach(d => {
+            const data = d.data();
+            const uid = data.uid||'';
+            const ui = usersMap[uid] || { username: data.username||'?', emoji: data.emoji||'👤' };
+            const cLen = (data.content||'').length;
+            // Wider star size range: 2 to 14
+            const starSize = Math.max(2, Math.min(14, 2.5 + Math.sqrt(cLen) * 0.8));
+            rawNodes.push({
+                postId: d.id, uid, username: ui.username, emoji: ui.emoji,
+                content: data.content||'',
+                likes: data.likes||0, commentCount: data.commentCount||0,
+                timestamp: data.timestamp, x: 0, y: 0, starSize,
+                floatAmp: 0.003+Math.random()*0.006, floatSpeedX: 0.3+Math.random()*0.4,
+                floatSpeedY: 0.25+Math.random()*0.35, floatPhase: Math.random()*Math.PI*2,
+            });
+        });
+        setProgress(25, `LOADED ${rawNodes.length} POSTS`);
+        return rawNodes;
+    }
+
+    async function loadModels() {
+        // Clear ALL browser caches to purge stale HTML responses from old rewrite rules
+        if ('caches' in window) {
+            try {
+                const keys = await caches.keys();
+                for (const key of keys) {
+                    await caches.delete(key);
+                    console.log('Cleared cache:', key);
+                }
+            } catch(e) { console.warn('Cache cleanup skipped:', e); }
+        }
+
+        setProgress(30, 'LOADING CHINESE NLP MODEL...');
+        cn_extractor = await pipeline('feature-extraction', 'Xenova/bge-small-zh-v1.5', {
+            quantized: true,
+            progress_callback: (p) => {
+                if (p.status === 'progress' && p.progress) {
+                    setProgress(30 + Math.round(p.progress * 0.15), `LOADING CN MODEL: ${Math.round(p.progress)}%`);
+                }
+            }
+        });
+        setProgress(50, 'LOADING ENGLISH NLP MODEL...');
+        en_extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+            quantized: true,
+            progress_callback: (p) => {
+                if (p.status === 'progress' && p.progress) {
+                    setProgress(50 + Math.round(p.progress * 0.12), `LOADING EN MODEL: ${Math.round(p.progress)}%`);
+                }
+            }
+        });
+        setProgress(65, 'LOADING SENTIMENT MATRICES...');
+        const [a, b] = await Promise.all([
+            fetch('cn_matrix.json', { cache: 'no-cache' }),
+            fetch('en_matrix.json', { cache: 'no-cache' })
+        ]);
+        if (!a.ok || !b.ok) throw new Error('Failed to load matrix files');
+        cn_matrix = await a.json();
+        en_matrix = await b.json();
+        setProgress(70, 'MODELS READY');
+    }
+
+    async function computeNodePositions(raw) {
+        for (let i = 0; i < raw.length; i++) {
+            setProgress(70+Math.round((i/raw.length)*25), `MAPPING POST ${i+1}/${raw.length}...`);
+            if (raw[i].content?.trim()) {
+                const [px,py] = await analyzeSentiment(raw[i].content);
+                raw[i].x = px; raw[i].y = py;
+            } else { raw[i].x = (Math.random()-0.5)*0.15; raw[i].y = (Math.random()-0.5)*0.15; }
+        }
+    }
+
+    // ─── Star Drawing Helpers ───
+    function drawStar4(cx, cy, outerR, innerR) {
+        ctx.beginPath();
+        for (let i = 0; i < 4; i++) {
+            const oa = -Math.PI/2 + i*Math.PI/2;
+            const ia = oa + Math.PI/4;
+            if (i===0) ctx.moveTo(cx+Math.cos(oa)*outerR, cy+Math.sin(oa)*outerR);
+            else ctx.lineTo(cx+Math.cos(oa)*outerR, cy+Math.sin(oa)*outerR);
+            ctx.lineTo(cx+Math.cos(ia)*innerR, cy+Math.sin(ia)*innerR);
+        }
+        ctx.closePath();
+    }
+    function getStarColor(x, y) {
+        const w = (y+1)/2;
+        return { r: Math.round(180+w*75), g: Math.round(185+w*60), b: Math.round(220-w*30) };
+    }
+
+    function drawNodeStar(sx, sy, node, isHovered) {
+        const baseSize = node.starSize * Math.max(0.6, Math.min(1.5, scale*0.7));
+        const pulse = 1 + 0.15*Math.sin(time*1.5 + node.floatPhase*2);
+        const starOuter = baseSize * pulse * (isHovered ? 2.2 : 1);
+        const color = getStarColor(node.x, node.y);
+        const distToMouse = Math.hypot(node.x - mouseWX, node.y - mouseWY);
+        const prox = Math.max(0, 1 - distToMouse / 0.25);
+
+        // Outer glow
+        if (isHovered || prox > 0) {
+            const gr = isHovered ? starOuter*5 : starOuter*3*prox;
+            const ga = isHovered ? 0.35 : 0.15*prox;
+            const grad = ctx.createRadialGradient(sx,sy,0,sx,sy,gr);
+            grad.addColorStop(0, isHovered ? `rgba(255,255,255,${ga})` : `rgba(${color.r},${color.g},${color.b},${ga})`);
+            if (isHovered) grad.addColorStop(0.4, `rgba(${color.r},${color.g},${color.b},${ga*0.4})`);
+            grad.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(sx,sy,gr,0,Math.PI*2); ctx.fill();
+        }
+        // Core glow
+        const cg = ctx.createRadialGradient(sx,sy,0,sx,sy,starOuter*2);
+        cg.addColorStop(0, `rgba(${color.r},${color.g},${color.b},${0.08+0.04*pulse})`);
+        cg.addColorStop(1, `rgba(${color.r},${color.g},${color.b},0)`);
+        ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(sx,sy,starOuter*2,0,Math.PI*2); ctx.fill();
+        // Star shape
+        drawStar4(sx, sy, starOuter, starOuter*0.3);
+        ctx.fillStyle = `rgba(${color.r},${color.g},${color.b},${isHovered?1:0.7+0.2*pulse})`; ctx.fill();
+        // Center dot
+        ctx.beginPath(); ctx.arc(sx,sy,starOuter*0.25,0,Math.PI*2);
+        ctx.fillStyle = `rgba(255,255,255,${isHovered?0.95:0.6+0.2*pulse})`; ctx.fill();
+        // Hover emoji
+        if (isHovered) {
+            const es = Math.max(12,Math.min(18,13*scale));
+            ctx.font = `${es}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText(node.emoji, sx, sy - starOuter*3);
+            ctx.font = `${Math.max(8,Math.min(10,9*scale))}px 'SF Mono', monospace`;
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.fillText(node.username, sx, sy - starOuter*3 + es*0.65);
+        }
+        // Deep zoom emoji
+        if (scale > 4 && !isHovered) {
+            const es = Math.max(10,Math.min(24,14*scale/4));
+            ctx.globalAlpha = Math.min(1,(scale-4)/2);
+            ctx.font = `${es}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText(node.emoji, sx, sy - starOuter*2);
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    // ─── Canvas Rendering ───
+    function drawFrame() {
+        time += 0.012;
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = '#020208'; ctx.fillRect(0, 0, W, H);
+
+        // BG stars
+        for (const s of bgStars) {
+            const [sx,sy] = worldToScreen(s.x, s.y);
+            if (sx < -50 || sx > W+50 || sy < -50 || sy > H+50) continue;
+            const tw = 0.5 + 0.5*Math.sin(time*s.twinkleSpeed*60 + s.twinkleOffset);
+            ctx.fillStyle = `rgba(180,190,220,${s.brightness*tw})`;
+            ctx.beginPath(); ctx.arc(sx, sy, s.size*Math.min(scale*0.5,1.2), 0, Math.PI*2); ctx.fill();
+        }
+
+        drawGrid();
+
+        // Post nodes
+        for (const node of nodes) {
+            const fx = Math.sin(time*node.floatSpeedX+node.floatPhase)*node.floatAmp;
+            const fy = Math.cos(time*node.floatSpeedY+node.floatPhase*1.3)*node.floatAmp;
+            const [sx,sy] = worldToScreen(node.x+fx, node.y+fy);
+            if (sx < -100 || sx > W+100 || sy < -100 || sy > H+100) continue;
+            drawNodeStar(sx, sy, node, hoveredNode === node);
+        }
+
+        // Live preview star (⭐️ while composing)
+        if (liveStarActive) {
+            const [lsx, lsy] = worldToScreen(liveStarX, liveStarY);
+            const bob = Math.sin(time*2)*3;
+            const es = Math.max(24, Math.min(40, 30*scale));
+            ctx.font = `${es}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText('⭐', lsx, lsy + bob);
+            // Glow under it
+            const lg = ctx.createRadialGradient(lsx, lsy, 0, lsx, lsy, es*1.5);
+            lg.addColorStop(0, 'rgba(255,220,80,0.15)'); lg.addColorStop(1, 'rgba(255,220,80,0)');
+            ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(lsx,lsy,es*1.5,0,Math.PI*2); ctx.fill();
+        }
+
+        // Post animations (⭐️ → four-pointed star)
+        for (let i = postAnimations.length-1; i >= 0; i--) {
+            const anim = postAnimations[i];
+            anim.progress += 0.015;
+            if (anim.progress >= 1) { postAnimations.splice(i, 1); continue; }
+            const [asx, asy] = worldToScreen(anim.x, anim.y);
+            const t = anim.progress;
+            const emojiAlpha = Math.max(0, 1 - t*3);
+            const starAlpha = Math.min(1, t*2);
+            const s = 8 * (0.5 + 0.5*Math.sin(t*Math.PI));
+            if (emojiAlpha > 0) {
+                ctx.globalAlpha = emojiAlpha;
+                ctx.font = `${30*(1-t*0.5)}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+                ctx.fillText('⭐', asx, asy); ctx.globalAlpha = 1;
+            }
+            if (starAlpha > 0) {
+                ctx.globalAlpha = starAlpha;
+                const c = anim.color;
+                drawStar4(asx, asy, s, s*0.3);
+                ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},0.9)`; ctx.fill();
+                ctx.beginPath(); ctx.arc(asx,asy,s*0.25,0,Math.PI*2);
+                ctx.fillStyle = `rgba(255,255,255,0.8)`; ctx.fill();
+                ctx.globalAlpha = 1;
+                // Flash ring
+                const ringR = s * (1 + t*4);
+                const rg = ctx.createRadialGradient(asx,asy,ringR*0.8,asx,asy,ringR);
+                rg.addColorStop(0,'rgba(255,255,255,0)'); rg.addColorStop(1,`rgba(255,255,255,${0.15*(1-t)})`);
+                ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(asx,asy,ringR,0,Math.PI*2); ctx.fill();
+            }
+        }
+
+        requestAnimationFrame(drawFrame);
+    }
+
+    function drawGrid() {
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
+        for (let v = -2; v <= 2; v += 0.5) {
+            let [a,b] = worldToScreen(v,-3), [c,d] = worldToScreen(v,3);
+            ctx.beginPath(); ctx.moveTo(a,b); ctx.lineTo(c,d); ctx.stroke();
+            [a,b] = worldToScreen(-3,v); [c,d] = worldToScreen(3,v);
+            ctx.beginPath(); ctx.moveTo(a,b); ctx.lineTo(c,d); ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        let [a,b] = worldToScreen(0,-3), [c,d] = worldToScreen(0,3);
+        ctx.beginPath(); ctx.moveTo(a,b); ctx.lineTo(c,d); ctx.stroke();
+        [a,b] = worldToScreen(-3,0); [c,d] = worldToScreen(3,0);
+        ctx.beginPath(); ctx.moveTo(a,b); ctx.lineTo(c,d); ctx.stroke();
+
+        // Quadrant labels - bigger, dual language
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const fontSize = Math.max(13, Math.min(18, 15 * scale));
+        ctx.font = `${fontSize}px monospace`;
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+
+        // Top: Positive
+        let [tx,ty] = worldToScreen(0, 1.15);
+        ctx.fillText('POSITIVE', tx, ty - fontSize*0.7);
+        ctx.font = `${fontSize*0.75}px monospace`;
+        ctx.fillText('喜悦 / 赞同', tx, ty + fontSize*0.4);
+
+        // Bottom: Negative
+        ctx.font = `${fontSize}px monospace`;
+        [tx,ty] = worldToScreen(0, -1.15);
+        ctx.fillText('NEGATIVE', tx, ty - fontSize*0.7);
+        ctx.font = `${fontSize*0.75}px monospace`;
+        ctx.fillText('厌恶 / 悲伤', tx, ty + fontSize*0.4);
+
+        // Right: Rational
+        ctx.font = `${fontSize}px monospace`;
+        ctx.textAlign = 'left';
+        [tx,ty] = worldToScreen(1.08, 0);
+        ctx.fillText('RATIONAL', tx, ty - fontSize*0.5);
+        ctx.font = `${fontSize*0.75}px monospace`;
+        ctx.fillText('保守 / 客观', tx, ty + fontSize*0.5);
+
+        // Left: Radical
+        ctx.font = `${fontSize}px monospace`;
+        ctx.textAlign = 'right';
+        [tx,ty] = worldToScreen(-1.08, 0);
+        ctx.fillText('RADICAL', tx, ty - fontSize*0.5);
+        ctx.font = `${fontSize*0.75}px monospace`;
+        ctx.fillText('激进 / 情绪', tx, ty + fontSize*0.5);
+    }
+
+    // ─── Interaction ───
+    canvas.addEventListener('mousedown', (e) => {
+        if (e.button === 0) { isDragging = true; dragStartX = mouseDownX = e.clientX; dragStartY = mouseDownY = e.clientY; }
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            offsetX += (e.clientX-dragStartX)/scale; offsetY += (e.clientY-dragStartY)/scale;
+            dragStartX = e.clientX; dragStartY = e.clientY;
+        }
+        const [wx,wy] = screenToWorld(e.clientX, e.clientY);
+        mouseWX = wx; mouseWY = wy;
+        let closest = null, closestD = Infinity;
+        const hr = 0.05/scale + 0.025;
+        for (const n of nodes) { const d = Math.hypot(n.x-wx,n.y-wy); if (d<hr && d<closestD) { closest=n; closestD=d; } }
+        hoveredNode = closest;
+        canvas.style.cursor = isDragging ? 'grabbing' : (closest ? 'pointer' : 'grab');
+        const tt = document.getElementById('tooltip');
+        if (closest && !isDragging) {
+            tt.style.opacity='1'; tt.style.left=Math.min(e.clientX+16,W-280)+'px'; tt.style.top=(e.clientY-10)+'px';
+            tt.querySelector('.tt-emoji').textContent = closest.emoji;
+            tt.querySelector('.tt-name').textContent = closest.username;
+            tt.querySelector('.tt-content').textContent = closest.content||'(no text)';
+        } else { tt.style.opacity='0'; }
+    });
+    window.addEventListener('mouseup', (e) => {
+        if (isDragging && Math.hypot(e.clientX-mouseDownX, e.clientY-mouseDownY) < 5) {
+            if (hoveredNode) openPostPanel(hoveredNode); else closeRightPanel();
+        }
+        isDragging = false;
+    });
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const f = e.deltaY > 0 ? 0.9 : 1.1;
+        const ns = Math.max(0.3, Math.min(12, scale*f));
+        const [wx,wy] = screenToWorld(e.clientX, e.clientY);
+        scale = ns;
+        const bs = Math.min(W,H)*BASE_SCALE_FACTOR;
+        const nsx = W/2 + (wx*bs+offsetX)*scale, nsy = H/2 + (-wy*bs+offsetY)*scale;
+        offsetX += (e.clientX-nsx)/scale; offsetY += (e.clientY-nsy)/scale;
+        document.getElementById('hud-zoom').textContent = `ZOOM: ${scale.toFixed(2)}x`;
+    }, { passive: false });
+
+    window.addEventListener('keydown', (e) => { if (e.key==='Escape') { closeRightPanel(); closeComposer(); } });
+
+    // ─── Right Panel: Post Detail ───
+    window.openPostPanel = function(node) {
+        const panel = document.getElementById('right-panel');
+        document.getElementById('rp-emoji').textContent = node.emoji;
+        document.getElementById('rp-emoji').onclick = null;
+        document.getElementById('rp-name').textContent = node.username;
+        document.getElementById('rp-name').className = 'rpanel-name';
+        document.getElementById('rp-stats').innerHTML = `
+            <span>❤️ <span class="rpanel-stat-val">${node.likes}</span></span>
+            <span>💬 <span class="rpanel-stat-val">${node.commentCount}</span></span>`;
+        document.getElementById('rp-coords').textContent = `SENTIMENT: X ${node.x.toFixed(3)} / Y ${node.y.toFixed(3)}`;
+
+        const date = node.timestamp?.seconds ? new Date(node.timestamp.seconds*1000).toLocaleString('zh-CN') : '';
+        const others = nodes.filter(n => n.uid===node.uid && n.postId!==node.postId);
+        let oh = '';
+        if (others.length) {
+            oh = `<div class="rpanel-section">OTHER POSTS BY ${node.username.toUpperCase()}</div>`;
+            oh += others.map(p => {
+                const pd = p.timestamp?.seconds ? new Date(p.timestamp.seconds*1000).toLocaleString('zh-CN') : '';
+                return `<div class="post-card"><div class="post-card-content">${escapeHtml(p.content)}</div><div class="post-card-meta"><span>❤️ ${p.likes}</span><span>💬 ${p.commentCount}</span><span style="margin-left:auto">${pd}</span></div></div>`;
+            }).join('');
+        }
+        document.getElementById('rp-body').innerHTML = `<div class="post-card-content" style="font-size:15px;color:#ddd;line-height:1.7;margin-bottom:14px">${escapeHtml(node.content)}</div><div class="post-card-meta" style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #1a1a2a"><span>❤️ ${node.likes}</span><span>💬 ${node.commentCount}</span><span style="margin-left:auto;color:#333">${date}</span></div>${oh}`;
+        panel.classList.add('open');
+    };
+
+    // ─── Right Panel: User Profile ───
+    window.openProfile = function() {
+        if (!currentUser || !currentUserData) return;
+        const panel = document.getElementById('right-panel');
+        const ud = currentUserData;
+        const emojiEl = document.getElementById('rp-emoji');
+        emojiEl.textContent = ud.emoji;
+        emojiEl.onclick = () => showEmojiPicker(emojiEl, async (emoji) => {
+            ud.emoji = emoji;
+            emojiEl.textContent = emoji;
+            await updateDoc(doc(db, 'users', currentUser.uid), { emoji });
+        });
+
+        const nameEl = document.getElementById('rp-name');
+        nameEl.textContent = ud.username;
+        nameEl.className = 'rpanel-name editable';
+        nameEl.onclick = () => {
+            const input = prompt('New username:', ud.username);
+            if (input && input.trim()) {
+                ud.username = input.trim();
+                nameEl.textContent = ud.username;
+                updateDoc(doc(db, 'users', currentUser.uid), { username: ud.username });
+                document.getElementById('hud-welcome').textContent = `WELCOME, ${ud.username.toUpperCase()}`;
+            }
+        };
+
+        document.getElementById('rp-stats').innerHTML = `
+            <span>❤️ <span class="rpanel-stat-val">${ud.totalLikes}</span></span>
+            <span>💬 <span class="rpanel-stat-val">${ud.totalComments}</span></span>
+            <span>👥 <span class="rpanel-stat-val">${ud.totalFollowers}</span></span>`;
+        document.getElementById('rp-coords').textContent = '';
+
+        const myPosts = nodes.filter(n => n.uid === currentUser.uid);
+        let ph = `<div class="rpanel-section">YOUR POSTS (${myPosts.length})</div>`;
+        if (myPosts.length === 0) ph += '<div style="color:#333;font-size:12px">No posts yet</div>';
+        else ph += myPosts.map(p => {
+            const pd = p.timestamp?.seconds ? new Date(p.timestamp.seconds*1000).toLocaleString('zh-CN') : '';
+            return `<div class="post-card"><div class="post-card-content">${escapeHtml(p.content)}</div><div class="post-card-meta"><span>❤️ ${p.likes}</span><span>💬 ${p.commentCount}</span><span style="margin-left:auto">${pd}</span></div></div>`;
+        }).join('');
+        document.getElementById('rp-body').innerHTML = ph;
+        panel.classList.add('open');
+    };
+
+    window.closeRightPanel = function() { document.getElementById('right-panel').classList.remove('open'); };
+
+    // ─── Emoji Picker ───
+    function showEmojiPicker(anchorEl, onSelect) {
+        const wrap = document.getElementById('emoji-picker-wrap');
+        const rect = anchorEl.getBoundingClientRect();
+        wrap.style.left = (rect.right + 10) + 'px';
+        wrap.style.top = rect.top + 'px';
+        wrap.style.display = 'block';
+        const picker = wrap.querySelector('emoji-picker');
+        const handler = (e) => {
+            onSelect(e.detail.unicode);
+            wrap.style.display = 'none';
+            picker.removeEventListener('emoji-click', handler);
+        };
+        picker.addEventListener('emoji-click', handler);
+        // Close on outside click
+        setTimeout(() => {
+            const close = (e) => { if (!wrap.contains(e.target)) { wrap.style.display='none'; document.removeEventListener('click', close); } };
+            document.addEventListener('click', close);
+        }, 100);
+    }
+
+    // ─── Composer ───
+    let composerOpen = false;
+    let typingTimer;
+
+    window.toggleComposer = function() {
+        if (composerOpen) { closeComposer(); } else { openComposer(); }
+    };
+
+    function openComposer() {
+        document.getElementById('composer-box').classList.add('open');
+        document.getElementById('say-btn').style.display = 'none';
+        composerOpen = true;
+        liveStarActive = true;
+        document.getElementById('composer-textarea').focus();
+    }
+
+    function closeComposer() {
+        document.getElementById('composer-box').classList.remove('open');
+        document.getElementById('say-btn').style.display = '';
+        composerOpen = false;
+        liveStarActive = false;
+        liveStarX = 0; liveStarY = 0;
+        document.getElementById('composer-textarea').value = '';
+    }
+
+    // Real-time sentiment tracking while typing
+    document.getElementById('composer-textarea').addEventListener('input', (e) => {
+        const text = e.target.value.trim();
+        clearTimeout(typingTimer);
+        if (!text) { liveStarX = 0; liveStarY = 0; return; }
+        typingTimer = setTimeout(async () => {
+            const [x, y] = await analyzeSentiment(text);
+            liveStarX = x; liveStarY = y;
+        }, 400);
+    });
+
+
+    // ─── RennOS Algorithm Functions ───
+    const PROXY_URL = "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
+    const AUTH_TOKEN = "balabalabalabaabc";
+
+    function calcTrafficFactor(diffHours) {
+        let K = 1 - Math.exp(-diffHours / 12);
+        if (Math.random() < 0.05) K = 3 + Math.random() * 2;
+        return K;
+    }
+    function calcStreakMultiplier(streakDays) {
+        return Math.min(1 + streakDays * 0.1, 1.5);
+    }
+
+    // Submit post (synced with rennos05 algorithm + AI comments)
+    window.submitPost = async function() {
+        if (!currentUser) {
+            alert('Please login to post!');
+            window.location.href = 'login.html';
+            return;
+        }
+        const text = document.getElementById('composer-textarea').value.trim();
+        if (!text) return;
+
+        const btn = document.getElementById('post-btn');
+        btn.textContent = 'POSTING...'; btn.disabled = true;
+
+        try {
+            const uid = currentUser.uid;
+            const ud = usersMap[uid] || { username: 'user', emoji: '✦' };
+            const now = Date.now();
+
+            // Compute sentiment coordinates
+            const [fx, fy] = text ? await analyzeSentiment(text) : [0, 0];
+
+            // ========== RennOS Algorithm Calculations ==========
+            const lastPost = ud.lastPostTime || 0;
+            const diffHours = (now - lastPost) / (1000 * 60 * 60);
+            const K = calcTrafficFactor(diffHours);
+
+            const today = new Date().toISOString().slice(0, 10);
+            const lastStreakDate = ud.lastStreakDate || "";
+            const oldStreakDays = ud.streakDays || 0;
+            let newStreakDays = oldStreakDays;
+            if (lastStreakDate !== today) {
+                const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+                newStreakDays = (lastStreakDate === yesterday) ? oldStreakDays + 1 : 1;
+            }
+            const streakMultiplier = calcStreakMultiplier(newStreakDays);
+
+            const contentLen = text.length;
+            const totalEngagement = (ud.totalLikes || 0) + (ud.totalComments || 0);
+            const a = (1 + Math.log(1 + contentLen / 20)) * (1 + Math.log(1 + totalEngagement / 50)) * (3 + Math.random() * 5);
+
+            const effectiveK = Math.max(0.3, K);
+            const calcLikes = Math.max(5, Math.round(a * effectiveK * streakMultiplier));
+            const calcCommentCount = Math.max(1, Math.round(calcLikes / (10 + Math.random() * 10)));
+            const aiCommentCount = Math.min(calcCommentCount, 20);
+
+            // ========== AI Comment Generation ==========
+            const systemPrompt = `You are the comment generation engine for a social network. Generate in-character user comments for this post.\n\nPost by "${ud.username}": "${text}"\n\nIMPORTANT: Every comment MUST directly respond to or reference the specific text content of this post. Read the post carefully and react to what the user actually said — their words, tone, emotion, or topic. Do NOT generate generic comments. Do NOT mention or reference any image — there is no image.\n\nGenerate EXACTLY ${aiCommentCount} comments. Rules:\n1. LANGUAGE: Match the post language. Chinese → Chinese internet slang. English → English.\n2. COMMENTER IDs: Creative usernames like real social media users — e.g. 还有多久周五, Rikovo, 脆皮大学生, 对方正在输入中, 无能の丈夫, Louisaaaa, 祈, monodream, Psychooo_, 5号人机, null_pointer_desu, 404_soul_not_found. Do NOT reuse these examples directly, create new ones in similar styles.\n3. TONE MIX (like a real comment section): ~30% Supportive (genuine praise, encouragement, relatable replies), ~30% Cynical (sarcastic, skeptical, backhanded compliments), ~20% Dismissive (cold, unimpressed, "ok and?", "nobody asked"), ~20% Bot/Spam (glitchy bot replies, parody ads, broken system messages, one-word chaos).\n4. RELEVANCE: Each comment must clearly relate to the post content. If the post is short or cryptic, react to its vibe, tone, or possible meaning — never invent topics not present in the post.\n\nReturn EXACTLY this JSON, nothing else:\n{"comments": [{"id":"...", "comment":"..."}]}`;
+
+            const aiMessages = [{ role: "user", content: [{ type: "text", text: systemPrompt }] }];
+
+            const aiResponse = await fetch(PROXY_URL, {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + AUTH_TOKEN, "Content-Type": "application/json" },
+                body: JSON.stringify({ model: "openai/gpt-4o", input: { messages: aiMessages } })
+            });
+
+            const aiJson = await aiResponse.json();
+            console.log("AI raw response:", JSON.stringify(aiJson));
+
+            let allCommentsWithLikes = [];
+            if (aiJson.output && Array.isArray(aiJson.output)) {
+                const cleanedText = aiJson.output.join("").replace(/```json/g, "").replace(/```/g, "").trim();
+                const startIdx = cleanedText.indexOf("{");
+                const endIdx = cleanedText.lastIndexOf("}");
+                if (startIdx !== -1 && endIdx > startIdx) {
+                    const aiData = JSON.parse(cleanedText.substring(startIdx, endIdx + 1));
+                    allCommentsWithLikes = aiData.comments.map(c => ({ id: c.id, comment: c.comment, likedBy: [] }));
+                }
+            }
+
+            // ========== Batch Release System ==========
+            const needsBatching = allCommentsWithLikes.length > 5;
+            let postData;
+
+            if (needsBatching) {
+                const totalBatches = 2 + Math.floor(Math.random() * 5);
+                const batchIntervalMs = (1 + Math.random() * 2) * 60 * 1000;
+                const commentsPerBatch = [];
+                const likesPerBatch = [];
+                let remainingComments = allCommentsWithLikes.length;
+                let remainingLikes = calcLikes;
+
+                for (let i = 0; i < totalBatches; i++) {
+                    const isLast = (i === totalBatches - 1);
+                    const batchComments = isLast ? remainingComments : Math.max(1, Math.round(remainingComments / (totalBatches - i) * (0.7 + Math.random() * 0.6)));
+                    const batchLikes = isLast ? remainingLikes : Math.max(1, Math.round(remainingLikes / (totalBatches - i) * (0.7 + Math.random() * 0.6)));
+                    commentsPerBatch.push(Math.min(batchComments, remainingComments));
+                    likesPerBatch.push(Math.min(batchLikes, remainingLikes));
+                    remainingComments -= commentsPerBatch[i];
+                    remainingLikes -= likesPerBatch[i];
+                }
+
+                const firstBatchComments = allCommentsWithLikes.slice(0, commentsPerBatch[0]);
+                postData = {
+                    likes: likesPerBatch[0],
+                    comments: firstBatchComments,
+                    allComments: allCommentsWithLikes,
+                    finalLikes: calcLikes,
+                    releasePlan: { totalBatches, batchIntervalMs, commentsPerBatch, likesPerBatch },
+                    releasedBatches: 1,
+                    createdAt: now
+                };
+            } else {
+                postData = {
+                    likes: calcLikes,
+                    comments: allCommentsWithLikes
+                };
+            }
+
+            // ========== Write to Firestore (batch) ==========
+            const batch = writeBatch(db);
+            const postRef = doc(collection(db, 'posts'));
+            batch.set(postRef, {
+                uid: uid,
+                username: ud.username,
+                emoji: ud.emoji,
+                content: text,
+                commentCount: calcCommentCount,
+                timestamp: serverTimestamp(),
+                ...postData
+            });
+
+            batch.set(doc(db, 'users', uid), {
+                totalLikes: increment(calcLikes),
+                totalComments: increment(calcCommentCount),
+                lastPostTime: now,
+                streakDays: newStreakDays,
+                lastStreakDate: today
+            }, { merge: true });
+
+            await batch.commit();
+
+            // Start post animation
+            postAnimations.push({ x: fx, y: fy, progress: 0, color: getStarColor(fx, fy) });
+
+            // Add to local nodes after animation
+            const cLen = text.length;
+            setTimeout(() => {
+                nodes.push({
+                    postId: postRef.id, uid, username: ud.username, emoji: ud.emoji,
+                    content: text, likes: calcLikes, commentCount: calcCommentCount,
+                    timestamp: { seconds: Date.now()/1000 },
+                    x: fx, y: fy, starSize: Math.max(2, Math.min(14, 2.5 + Math.sqrt(cLen)*0.8)),
+                    floatAmp: 0.003+Math.random()*0.006, floatSpeedX: 0.3+Math.random()*0.4,
+                    floatSpeedY: 0.25+Math.random()*0.35, floatPhase: Math.random()*Math.PI*2,
+                });
+                document.getElementById('node-count').textContent = nodes.length;
+            }, 1200);
+
+            console.log(`Post created: +${calcLikes} likes, +${calcCommentCount} comments`);
+            closeComposer();
+        } catch(err) {
+            console.error('Post failed:', err);
+            alert('Post failed: ' + err.message);
+        } finally {
+            btn.textContent = 'POST'; btn.disabled = false;
+        }
+    };
+
+    function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    // ─── Main ───
+    async function main() {
+        try {
+            generateBgStars();
+            drawFrame();
+
+            const rawNodes = await loadFirebaseData();
+            document.getElementById('node-count').textContent = rawNodes.length;
+            await loadModels();
+            await computeNodePositions(rawNodes);
+            nodes = rawNodes;
+
+            // Re-check auth after data loaded
+            if (currentUser && usersMap[currentUser.uid]) {
+                currentUserData = usersMap[currentUser.uid];
+                document.getElementById('hud-welcome').textContent = `WELCOME, ${currentUserData.username.toUpperCase()}`;
+                document.getElementById('hud-welcome').style.display = 'block';
+                document.getElementById('hud-title').style.display = 'none';
+            }
+
+            setProgress(100, 'CONSTELLATION READY');
+            setTimeout(() => document.getElementById('loading-overlay').classList.add('fade-out'), 500);
+            console.log('Constellation loaded:', nodes.length, 'posts from', Object.keys(usersMap).length, 'users');
+        } catch(err) {
+            console.error('Init failed:', err);
+            setProgress(0, `ERROR: ${err.message}`);
+            loadingStatus.style.color = '#ff4444';
+        }
+    }
+    // ─── BGM: play as early as possible, loop forever ───
+    {
+        const bgm = document.getElementById('bgm');
+        bgm.volume = 0.35;
+        const tryPlay = () => bgm.play().catch(() => {});
+        tryPlay();
+        // Catch every possible early user gesture to unlock audio
+        const events = ['click','keydown','touchstart','mousedown','pointerdown','scroll','wheel'];
+        const unlock = () => {
+            tryPlay();
+            events.forEach(e => document.removeEventListener(e, unlock, true));
+        };
+        events.forEach(e => document.addEventListener(e, unlock, { capture: true, once: false }));
+        // Also retry on visibility change (e.g. user switches back to the tab)
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) tryPlay(); });
+    }
+
+    main();
+</script>
 </body>
 </html>

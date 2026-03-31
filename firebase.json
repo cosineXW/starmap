@@ -1,0 +1,14 @@
+{
+  "hosting": {
+    "site": "cd-starmap",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      "firebase-debug.log",
+      "*.py",
+      "*.csv",
+      "node_modules/**"
+    ]
+  }
+}
